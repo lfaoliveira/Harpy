@@ -1,5 +1,7 @@
 # Harpy: All-in-one App Manager
 
+<img src="./assets/harpy_logo.png" width=300px>
+
 ## Multi-Machine, Multi-OS
 
 Ever got tired of switching to a new machine and having to remember all your
@@ -61,43 +63,43 @@ is passed.
 
 ## Commands
 
-| Command | Description |
-| --- | --- |
-| `harpy init` | Write a starter config (or print it with `--stdout`) |
-| `harpy plan` | Show `to-install`, `installed`, `blocked` and `failed` items |
-| `harpy apply` | Pre-download when supported, then install one package at a time |
-| `harpy managers` | Show each manager, availability, host OS and elevation |
-| `harpy version` | Version, OS, architecture and Go runtime |
-| `harpy help` | Command overview |
+| Command          | Description                                                     |
+| ---------------- | --------------------------------------------------------------- |
+| `harpy init`     | Write a starter config (or print it with `--stdout`)            |
+| `harpy plan`     | Show `to-install`, `installed`, `blocked` and `failed` items    |
+| `harpy apply`    | Pre-download when supported, then install one package at a time |
+| `harpy managers` | Show each manager, availability, host OS and elevation          |
+| `harpy version`  | Version, OS, architecture and Go runtime                        |
+| `harpy help`     | Command overview                                                |
 
 All commands accept `--json`. The envelope is stable:
 
 ```json
 {
-  "schema": 1,
-  "command": "plan",
-  "version": "0.1.0-dev",
-  "data": {
-    "machine": "thinkpad",
-    "profiles": ["base", "dev"],
-    "items": [
-      {
-        "app": "ripgrep",
-        "manager": "apt",
-        "id": "ripgrep",
-        "os": "linux",
-        "status": "to-install"
-      }
-    ],
-    "summary": {
-      "total": 1,
-      "to_install": 1,
-      "installed": 0,
-      "blocked": 0,
-      "failed": 0,
-      "skipped": 0
+    "schema": 1,
+    "command": "plan",
+    "version": "0.1.0-dev",
+    "data": {
+        "machine": "thinkpad",
+        "profiles": ["base", "dev"],
+        "items": [
+            {
+                "app": "ripgrep",
+                "manager": "apt",
+                "id": "ripgrep",
+                "os": "linux",
+                "status": "to-install"
+            }
+        ],
+        "summary": {
+            "total": 1,
+            "to_install": 1,
+            "installed": 0,
+            "blocked": 0,
+            "failed": 0,
+            "skipped": 0
+        }
     }
-  }
 }
 ```
 
@@ -105,10 +107,10 @@ All commands accept `--json`. The envelope is stable:
 
 Paths:
 
-| Item | Linux | Windows |
-| --- | --- | --- |
-| Config | `~/.config/harpy/config.yaml` | `%APPDATA%\harpy\config.yaml` |
-| Logs | `~/.local/state/harpy/logs/` | `%LOCALAPPDATA%\harpy\logs\` |
+| Item       | Linux                           | Windows                         |
+| ---------- | ------------------------------- | ------------------------------- |
+| Config     | `~/.config/harpy/config.yaml`   | `%APPDATA%\harpy\config.yaml`   |
+| Logs       | `~/.local/state/harpy/logs/`    | `%LOCALAPPDATA%\harpy\logs\`    |
 | Index (M2) | `~/.local/share/harpy/harpy.db` | `%LOCALAPPDATA%\harpy\harpy.db` |
 
 Overrides: `HARPY_CONFIG` and `HARPY_DB`.
@@ -120,23 +122,23 @@ Apps may be plain strings or mappings with explicit IDs per manager:
 version: 1
 
 defaults:
-  managers: [winget, chocolatey]   # Linux falls back to apt, pacman
-  continue_on_error: true
+    managers: [winget, chocolatey] # Linux falls back to apt, pacman
+    continue_on_error: true
 
 profiles:
-  base:
-    apps:
-      - git
-      - name: ripgrep
-        winget: BurntSushi.ripgrep.MSVC
-        choco: ripgrep
-        apt: ripgrep
-        pacman: ripgrep
+    base:
+        apps:
+            - git
+            - name: ripgrep
+              winget: BurntSushi.ripgrep.MSVC
+              choco: ripgrep
+              apt: ripgrep
+              pacman: ripgrep
 
 machines:
-  - name: laptop
-    match: { os: linux, hostname: 'thinkpad-*' }
-    profiles: [base]
+    - name: laptop
+      match: { os: linux, hostname: 'thinkpad-*' }
+      profiles: [base]
 ```
 
 Manager precedence is filtered by the current OS. If an app declares an
@@ -144,12 +146,12 @@ explicit ID, that manager wins; otherwise the app name is used as the ID.
 
 ## Supported managers
 
-| Manager | OS | Pre-download | Elevation |
-| --- | --- | --- | --- |
-| winget | Windows | no (downloads during install) | no |
-| chocolatey | Windows | no (downloads during install) | yes |
-| apt | Linux | `apt-get update` + `apt-get -d install` | root |
-| pacman | Linux | `-Sy`/`-Syu` + `-Sw` | root |
+| Manager    | OS      | Pre-download                            | Elevation |
+| ---------- | ------- | --------------------------------------- | --------- |
+| winget     | Windows | no (downloads during install)           | no        |
+| chocolatey | Windows | no (downloads during install)           | yes       |
+| apt        | Linux   | `apt-get update` + `apt-get -d install` | root      |
+| pacman     | Linux   | `-Sy`/`-Syu` + `-Sw`                    | root      |
 
 ## Testing
 
@@ -179,3 +181,4 @@ details, the manual Docker commands and troubleshooting.
 - **M4:** Windows auto-elevation, goreleaser, release hardening
 
 Full execution plan: [`PLAN.md`](PLAN.md).
+
