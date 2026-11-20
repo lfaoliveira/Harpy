@@ -1,0 +1,30 @@
+services:
+  debian:
+    build:
+      context: .
+      dockerfile: docker/debian.Dockerfile
+    working_dir: /src
+    volumes:
+      - .:/src
+      - go-mod-debian:/go/pkg/mod
+      - go-build-debian:/root/.cache/go-build
+    command: ["bash", "scripts/linux-test.sh", "apt"]
+    tty: false
+
+  arch:
+    build:
+      context: .
+      dockerfile: docker/arch.Dockerfile
+    working_dir: /src
+    volumes:
+      - .:/src
+      - go-mod-arch:/go/pkg/mod
+      - go-build-arch:/root/.cache/go-build
+    command: ["bash", "scripts/linux-test.sh", "pacman"]
+    tty: false
+
+volumes:
+  go-mod-debian:
+  go-build-debian:
+  go-mod-arch:
+  go-build-arch:

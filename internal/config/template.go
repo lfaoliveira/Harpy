@@ -1,0 +1,48 @@
+package config
+
+// DefaultTemplate is the starter configuration written by "harpy init".
+// config.example.yaml at the repository root is kept identical to this
+// template (a unit test enforces it).
+const DefaultTemplate = `# harpy configuration (schema version 1)
+#
+# Package managers are selected per OS. IDs in an app mapping are optional:
+# when a manager has no explicit ID, the app name is used as the ID.
+version: 1
+
+search:
+  mode: fuzzy # fuzzy | literal
+  include_description: false
+
+defaults:
+  # Manager precedence. Windows: winget, chocolatey. Linux: apt, pacman.
+  # Managers that do not exist on the current OS are ignored.
+  managers: [winget, chocolatey]
+  continue_on_error: true
+
+profiles:
+  base:
+    apps:
+      - git
+      - name: vscode
+        winget: Microsoft.VisualStudioCode
+        choco: vscode
+      - name: ripgrep
+        winget: BurntSushi.ripgrep.MSVC
+        choco: ripgrep
+        apt: ripgrep
+        pacman: ripgrep
+  dev:
+    apps: [neovim, jq]
+
+machines:
+  - name: windows-desktop
+    match: { os: windows, hostname: 'DESKTOP-*' }
+    profiles: [base, dev]
+  - name: linux-laptop
+    match: { os: linux, hostname: 'thinkpad-*' }
+    profiles: [base, dev]
+  # Fallback when no hostname rule matched. Keep it last.
+  - name: fallback
+    match: { os: any }
+    profiles: [base]
+`
