@@ -44,7 +44,7 @@ echo "== go test =="
 go test ./...
 
 echo "== build =="
-go build -o /tmp/harpy ./cmd/harpy
+go build -o /tmp/harpy ./src/cmd/harpy
 
 echo "== managers =="
 /tmp/harpy managers

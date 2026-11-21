@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lfaoliveira/harpy/internal/config"
-	"github.com/lfaoliveira/harpy/internal/manager"
+	"github.com/lfaoliveira/harpy/src/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/manager"
 )
 
 type fakeManager struct {

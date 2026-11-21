@@ -12,10 +12,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/lfaoliveira/harpy/internal/config"
-	"github.com/lfaoliveira/harpy/internal/engine"
-	"github.com/lfaoliveira/harpy/internal/manager"
-	"github.com/lfaoliveira/harpy/internal/paths"
+	"github.com/lfaoliveira/harpy/src/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/engine"
+	"github.com/lfaoliveira/harpy/src/internal/manager"
+	"github.com/lfaoliveira/harpy/src/internal/paths"
 )
 
 func (a *application) commandInit(args []string) (int, error) {

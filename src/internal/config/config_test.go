@@ -210,7 +210,7 @@ func TestDefaultTemplateParses(t *testing.T) {
 }
 
 func TestDefaultTemplateMatchesExampleFile(t *testing.T) {
-	examplePath := "../../config.example.yaml"
+	examplePath := "../../../config.example.yaml"
 	data, err := os.ReadFile(examplePath)
 	if err != nil {
 		t.Fatalf("read %s: %v", examplePath, err)

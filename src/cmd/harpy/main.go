@@ -12,9 +12,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/lfaoliveira/harpy/internal/config"
-	"github.com/lfaoliveira/harpy/internal/engine"
-	"github.com/lfaoliveira/harpy/internal/paths"
+	"github.com/lfaoliveira/harpy/src/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/engine"
+	"github.com/lfaoliveira/harpy/src/internal/paths"
 )
 
 var version = "0.1.0-dev"

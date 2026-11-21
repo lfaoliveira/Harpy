@@ -26,14 +26,14 @@ Build from source (Go 1.23+):
 ```bash
 git clone https://github.com/lfaoliveira/harpy.git
 cd harpy
-go build -o harpy ./cmd/harpy
+go build -o harpy ./src/cmd/harpy
 ```
 
 Or, with [mise](https://mise.jdx.dev/) installed, from the repository root:
 
 ```bash
 mise install
-go install ./cmd/harpy
+go install ./src/cmd/harpy
 ```
 
 Put the resulting `harpy` binary on your `PATH`.

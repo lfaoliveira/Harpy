@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lfaoliveira/harpy/internal/config"
-	"github.com/lfaoliveira/harpy/internal/logx"
-	"github.com/lfaoliveira/harpy/internal/manager"
+	"github.com/lfaoliveira/harpy/src/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/logx"
+	"github.com/lfaoliveira/harpy/src/internal/manager"
 )
 
 // Status is the lifecycle state of one package in a plan.

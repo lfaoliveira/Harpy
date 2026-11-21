@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lfaoliveira/harpy/internal/paths"
+	"github.com/lfaoliveira/harpy/src/internal/paths"
 )
 
 // Run is one harpy invocation's log directory.

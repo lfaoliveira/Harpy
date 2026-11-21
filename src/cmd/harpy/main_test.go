@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lfaoliveira/harpy/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/config"
 )
 
 func testApp() (*application, *bytes.Buffer, *bytes.Buffer) {

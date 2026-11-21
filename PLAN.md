@@ -46,8 +46,8 @@ Toolchain: Go 1.23+ (já coberto por `go = "latest"` no `mise.toml`). Todas as d
 ## 2. Arquitetura
 
 ```
-cmd/harpy/main.go            # flags, dispatch CLI, check de privilégio
-internal/
+src/cmd/harpy/main.go        # flags, dispatch CLI, check de privilégio
+src/internal/
   config/      # schema YAML v1, match de máquina, resolução de perfis
   manager/     # Manager + Searcher por PM
     winget.go  choco.go  apt.go  pacman.go
