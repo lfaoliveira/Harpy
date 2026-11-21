@@ -47,16 +47,16 @@ packages and dotfiles belong to `upkg`; harpy will only delegate to it later.
 # FUTURE — not implemented
 version: 2
 dev:
-  runtimes:
-    node: '24'
-    python: '3.13'
-    go: 'latest'
-  managers: [npm, pip, cargo]
-  dotfiles:
-    tool: chezmoi
-    source: git@github.com:user/dotfiles.git
+    runtimes:
+        node: '24'
+        python: '3.13'
+        go: 'latest'
+    managers: [npm, pip, cargo]
+    dotfiles:
+        tool: chezmoi
+        source: git@github.com:user/dotfiles.git
 sync:
-  provider: git | gdrive | server
+    provider: git | gdrive | server
 ```
 
 ## Experiments / future ideas
@@ -67,3 +67,5 @@ sync:
 - Code signing.
 - Cross-check winget ↔ chocolatey install detection.
 - Automatic best-effort `index refresh` when the index is stale.
+- For mobile devices, create a mobile-first interface (Web or Native, we'll see) that allows to manage all official AND Side-loaded apps. Maybe have soft-uninstall? meaning that side-loaded apps stay inactive for 30 days instead of hard uninstallation.
+- In the mobile devices case, focus on Android and use Android's native APIs for installation management (use unofficial APIs for cataloguing and searching Official Play Store Apps ).
