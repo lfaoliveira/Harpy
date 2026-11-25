@@ -9,23 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/lfaoliveira/harpy/src/internal/paths"
 )
 
 // Run is one harpy invocation's log directory.
 type Run struct {
 	ID  string
 	Dir string
-}
-
-// NewRun creates a new log directory under the platform state directory.
-func NewRun() (*Run, error) {
-	base, err := paths.LogsDir()
-	if err != nil {
-		return nil, err
-	}
-	return NewRunIn(base)
 }
 
 // NewRunIn creates a new log directory under base.

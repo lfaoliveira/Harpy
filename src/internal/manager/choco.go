@@ -3,13 +3,15 @@ package manager
 import (
 	"context"
 	"io"
-	"os/exec"
 	"strings"
+
+	"github.com/lfaoliveira/harpy/src/internal/model"
+	"github.com/lfaoliveira/harpy/src/internal/platform"
 )
 
 var chocoExitCodes = map[int]error{
-	3010: ErrRebootRequired,
-	1641: ErrRebootRequired,
+	3010: model.ErrRebootRequired,
+	1641: model.ErrRebootRequired,
 }
 
 // Chocolatey manages packages through choco.exe on Windows.
@@ -17,16 +19,18 @@ type Chocolatey struct {
 	base
 }
 
-func NewChocolatey() *Chocolatey { return &Chocolatey{} }
+func NewChocolatey(runner platform.Runner) *Chocolatey {
+	return &Chocolatey{base: newBase(runner)}
+}
 
-func (m *Chocolatey) Name() string         { return "chocolatey" }
-func (m *Chocolatey) OS() string           { return "windows" }
-func (m *Chocolatey) NeedsElevation() bool { return true }
-func (m *Chocolatey) Available() bool      { _, err := exec.LookPath("choco"); return err == nil }
+func (m *Chocolatey) Name() model.ManagerName { return model.ManagerChocolatey }
+func (m *Chocolatey) OS() string              { return "windows" }
+func (m *Chocolatey) NeedsElevation() bool    { return true }
+func (m *Chocolatey) Available() bool         { return m.lookPath("choco") }
 
-func (m *Chocolatey) Installed(ctx context.Context, ids []string) (map[string]bool, error) {
-	result := make(map[string]bool, len(ids))
-	if len(ids) == 0 {
+func (m *Chocolatey) Installed(ctx context.Context, packages []model.Package) (map[model.PackageID]bool, error) {
+	result := make(map[model.PackageID]bool, len(packages))
+	if len(packages) == 0 {
 		return result, nil
 	}
 
@@ -46,17 +50,17 @@ func (m *Chocolatey) Installed(ctx context.Context, ids []string) (map[string]bo
 		id := strings.SplitN(line, "|", 2)[0]
 		installed[strings.ToLower(strings.TrimSpace(id))] = true
 	}
-	for _, id := range ids {
-		result[id] = installed[strings.ToLower(id)]
+	for _, pkg := range packages {
+		result[pkg.ID] = installed[strings.ToLower(pkg.ID.String())]
 	}
 	return result, nil
 }
 
-func (m *Chocolatey) Download(ctx context.Context, ids []string, w io.Writer) error {
-	return ErrNoDownload
+func (m *Chocolatey) Download(context.Context, []model.Package, io.Writer) error {
+	return model.ErrNoDownload
 }
 
-func (m *Chocolatey) Install(ctx context.Context, id string, w io.Writer) error {
-	err := m.run(ctx, w, "choco", "install", id, "-y", "--no-progress", "--limit-output")
+func (m *Chocolatey) Install(ctx context.Context, pkg model.Package, w io.Writer) error {
+	err := m.run(ctx, w, "choco", "install", pkg.ID.String(), "-y", "--no-progress", "--limit-output")
 	return wrapExit(err, chocoExitCodes)
 }

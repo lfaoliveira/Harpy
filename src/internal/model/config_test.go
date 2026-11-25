@@ -1,4 +1,4 @@
-package config
+package model
 
 import (
 	"os"
@@ -62,10 +62,10 @@ func TestParseAppForms(t *testing.T) {
 	if apps[1].Name != "vscode" || apps[1].Winget != "Microsoft.VisualStudioCode" || apps[1].Choco != "vscode" {
 		t.Fatalf("mapping app parsed wrong: %+v", apps[1])
 	}
-	if got := apps[1].IDFor("chocolatey"); got != "vscode" {
+	if got := apps[1].IDFor(ManagerChocolatey); got != "vscode" {
 		t.Fatalf("IDFor(chocolatey) = %q", got)
 	}
-	if got := apps[1].IDFor("apt"); got != "" {
+	if got := apps[1].IDFor(ManagerApt); got != "" {
 		t.Fatalf("IDFor(apt) = %q, want empty", got)
 	}
 }
@@ -217,6 +217,22 @@ func TestDefaultTemplateMatchesExampleFile(t *testing.T) {
 	}
 	normalize := func(s string) string { return strings.ReplaceAll(s, "\r\n", "\n") }
 	if normalize(string(data)) != normalize(DefaultTemplate) {
-		t.Fatalf("%s drifted from config.DefaultTemplate; regenerate it with \"harpy init --stdout\"", examplePath)
+		t.Fatalf("%s drifted from model.DefaultTemplate; regenerate it with \"harpy init --stdout\"", examplePath)
+	}
+}
+
+func TestNormalizeManagerName(t *testing.T) {
+	tests := map[string]ManagerName{
+		"winget":     ManagerWinget,
+		"choco":      ManagerChocolatey,
+		"chocolatey": ManagerChocolatey,
+		"apt-get":    ManagerApt,
+		"pacman":     ManagerPacman,
+		"brew":       "",
+	}
+	for input, want := range tests {
+		if got := NormalizeManagerName(input); got != want {
+			t.Errorf("NormalizeManagerName(%q) = %q, want %q", input, got, want)
+		}
 	}
 }

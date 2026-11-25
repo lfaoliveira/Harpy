@@ -68,10 +68,10 @@ bash scripts/linux-test.sh pacman
 
 ## What the Linux harness runs
 
-1. `gofmt -l cmd internal` must be empty.
+1. `gofmt -l src` must be empty.
 2. `go vet ./...`.
 3. `go test ./...`.
-4. `go build -o /tmp/harpy ./src/cmd/harpy`.
+4. `go build -o /tmp/harpy ./src`.
 5. `harpy managers` (detects apt or pacman in the container).
 6. Generates a temporary config with `jq` (already in the image) and `tree`
    (not installed).
@@ -94,8 +94,8 @@ the container.
 
 ```powershell
 go test ./...
-go run ./src/cmd/harpy managers
-go run ./src/cmd/harpy plan --profile dev
+go run ./src managers
+go run ./src plan --profile dev
 ```
 
 `winget` is the default manager on Windows. `chocolatey` requires an elevated
@@ -103,7 +103,7 @@ terminal, and harpy refuses to start an install without elevation:
 
 ```powershell
 # In an Administrator terminal
-go run ./src/cmd/harpy apply --profile base --yes
+go run ./src apply --profile base --yes
 ```
 
 Do not run `apply` against a profile you do not want installed. Use `plan`
@@ -115,8 +115,8 @@ first; it never changes the system.
 | --- | --- | --- |
 | Debian 12 container | apt | `.\scripts\test-linux.ps1 -Distro debian` |
 | Arch container | pacman | `.\scripts\test-linux.ps1 -Distro arch` |
-| Windows 11 host | winget | `go run ./src/cmd/harpy plan --profile dev` |
-| Windows 11 host (admin) | chocolatey | `go run ./src/cmd/harpy apply --profile base --yes` |
+| Windows 11 host | winget | `go run ./src plan --profile dev` |
+| Windows 11 host (admin) | chocolatey | `go run ./src apply --profile base --yes` |
 | Final release smoke | all | VM/Windows Sandbox + both containers |
 
 ## Troubleshooting

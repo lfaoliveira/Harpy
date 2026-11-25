@@ -1,40 +1,30 @@
-// Package manager defines the package-manager contract used by harpy and
-// implements the winget, chocolatey, apt and pacman adapters.
+// Package manager implements Harpy's package-manager adapters. Each adapter
+// translates raw command output into model contracts and delegates process
+// execution to a platform.Runner.
 package manager
 
 import (
-	"context"
-	"errors"
-	"io"
-	"runtime"
 	"strings"
-)
 
-// Sentinel errors returned by adapters. The engine maps them to friendly
-// summary statuses.
-var (
-	ErrNoDownload       = errors.New("package manager does not support pre-download")
-	ErrAlreadyInstalled = errors.New("package is already installed")
-	ErrNoUpdate         = errors.New("no update available")
-	ErrRebootRequired   = errors.New("reboot required")
+	"github.com/lfaoliveira/harpy/src/internal/domain"
+	"github.com/lfaoliveira/harpy/src/internal/model"
+	"github.com/lfaoliveira/harpy/src/internal/platform"
 )
-
-// Manager is the common contract for all package managers.
-type Manager interface {
-	Name() string
-	OS() string
-	Available() bool
-	NeedsElevation() bool
-	Installed(ctx context.Context, ids []string) (map[string]bool, error)
-	Download(ctx context.Context, ids []string, w io.Writer) error
-	Install(ctx context.Context, id string, w io.Writer) error
-}
 
 // Options configures adapter behavior.
 type Options struct {
 	// PacmanSync is "pkg" (default: pacman -Sy with a partial-upgrade warning)
 	// or "full" (pacman -Syu before installing).
 	PacmanSync string
+	// Runner overrides process execution (useful in tests).
+	Runner platform.Runner
+}
+
+func (o Options) runner() platform.Runner {
+	if o.Runner != nil {
+		return o.Runner
+	}
+	return platform.NewRunner()
 }
 
 func (o Options) pacmanSync() string {
@@ -45,19 +35,20 @@ func (o Options) pacmanSync() string {
 }
 
 // All returns every supported manager, regardless of host OS.
-func All(opts Options) []Manager {
-	return []Manager{
-		NewWinget(),
-		NewChocolatey(),
-		NewApt(),
-		NewPacman(opts.pacmanSync()),
+func All(opts Options) []domain.Manager {
+	runner := opts.runner()
+	return []domain.Manager{
+		NewWinget(runner),
+		NewChocolatey(runner),
+		NewApt(runner),
+		NewPacman(opts.pacmanSync(), runner),
 	}
 }
 
 // Host returns managers that belong to the current OS.
-func Host(opts Options) []Manager {
-	hostOS := runtime.GOOS
-	var out []Manager
+func Host(opts Options) []domain.Manager {
+	hostOS := platform.HostOS()
+	var out []domain.Manager
 	for _, m := range All(opts) {
 		if m.OS() == hostOS {
 			out = append(out, m)
@@ -67,8 +58,11 @@ func Host(opts Options) []Manager {
 }
 
 // ByName finds a manager by canonical name or alias.
-func ByName(name string, opts Options) (Manager, bool) {
-	canonical := canonicalName(name)
+func ByName(name string, opts Options) (domain.Manager, bool) {
+	canonical := model.NormalizeManagerName(name)
+	if canonical == "" {
+		return nil, false
+	}
 	for _, m := range All(opts) {
 		if m.Name() == canonical {
 			return m, true
@@ -78,29 +72,4 @@ func ByName(name string, opts Options) (Manager, bool) {
 }
 
 // IsKnown reports whether name is a supported manager.
-func IsKnown(name string) bool {
-	return canonicalName(name) != ""
-}
-
-// HostOrder returns the default precedence for the current OS.
-func HostOrder() []string {
-	if runtime.GOOS == "windows" {
-		return []string{"winget", "chocolatey"}
-	}
-	return []string{"apt", "pacman"}
-}
-
-func canonicalName(name string) string {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "winget":
-		return "winget"
-	case "chocolatey", "choco":
-		return "chocolatey"
-	case "apt", "apt-get":
-		return "apt"
-	case "pacman":
-		return "pacman"
-	default:
-		return ""
-	}
-}
+func IsKnown(name string) bool { return model.IsKnownManager(name) }

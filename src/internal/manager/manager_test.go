@@ -4,6 +4,8 @@ import (
 	"errors"
 	"runtime"
 	"testing"
+
+	"github.com/lfaoliveira/harpy/src/internal/model"
 )
 
 func TestWingetExitCodes(t *testing.T) {
@@ -11,11 +13,11 @@ func TestWingetExitCodes(t *testing.T) {
 		code   int
 		target error
 	}{
-		{wingetAlreadyInstalled, ErrAlreadyInstalled},
-		{wingetAlreadyInstalled32, ErrAlreadyInstalled},
-		{wingetNoUpdate, ErrNoUpdate},
-		{3010, ErrRebootRequired},
-		{1641, ErrRebootRequired},
+		{wingetAlreadyInstalled, model.ErrAlreadyInstalled},
+		{wingetAlreadyInstalled32, model.ErrAlreadyInstalled},
+		{wingetNoUpdate, model.ErrNoUpdate},
+		{3010, model.ErrRebootRequired},
+		{1641, model.ErrRebootRequired},
 	}
 	for _, tc := range tests {
 		err := wrapExit(&CommandError{Name: "winget", Code: tc.code}, wingetExitCodes)
@@ -25,19 +27,19 @@ func TestWingetExitCodes(t *testing.T) {
 	}
 
 	err := wrapExit(&CommandError{Name: "winget", Code: 1}, wingetExitCodes)
-	if errors.Is(err, ErrAlreadyInstalled) {
+	if errors.Is(err, model.ErrAlreadyInstalled) {
 		t.Fatalf("generic failure classified as already installed: %v", err)
 	}
 }
 
 func TestManagerAliases(t *testing.T) {
 	opts := Options{}
-	for alias, want := range map[string]string{
-		"winget":     "winget",
-		"choco":      "chocolatey",
-		"chocolatey": "chocolatey",
-		"apt-get":    "apt",
-		"pacman":     "pacman",
+	for alias, want := range map[string]model.ManagerName{
+		"winget":     model.ManagerWinget,
+		"choco":      model.ManagerChocolatey,
+		"chocolatey": model.ManagerChocolatey,
+		"apt-get":    model.ManagerApt,
+		"pacman":     model.ManagerPacman,
 	} {
 		mgr, ok := ByName(alias, opts)
 		if !ok {
@@ -58,7 +60,7 @@ func TestHostManagers(t *testing.T) {
 			t.Fatalf("%s has OS %q, host is %q", mgr.Name(), mgr.OS(), runtime.GOOS)
 		}
 	}
-	order := HostOrder()
+	order := model.HostOrder(runtime.GOOS)
 	if len(order) == 0 {
 		t.Fatal("empty host order")
 	}

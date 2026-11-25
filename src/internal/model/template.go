@@ -1,4 +1,4 @@
-package config
+package model
 
 // DefaultTemplate is the starter configuration written by "harpy init".
 // config.example.yaml at the repository root is kept identical to this

@@ -1,8 +1,9 @@
-package paths
+package platform
 
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -39,5 +40,17 @@ func TestLogsDirIsAbsolute(t *testing.T) {
 	}
 	if !filepath.IsAbs(got) {
 		t.Fatalf("LogsDir is not absolute: %q", got)
+	}
+}
+
+func TestToSlash(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		if got := ToSlash(`C:\Users\me\harpy`); got != "C:/Users/me/harpy" {
+			t.Fatalf("ToSlash = %q", got)
+		}
+		return
+	}
+	if got := ToSlash("/home/me/harpy"); got != "/home/me/harpy" {
+		t.Fatalf("ToSlash = %q", got)
 	}
 }

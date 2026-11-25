@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bytes"
@@ -9,17 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lfaoliveira/harpy/src/internal/config"
+	"github.com/lfaoliveira/harpy/src/internal/model"
 )
 
-func testApp() (*application, *bytes.Buffer, *bytes.Buffer) {
+func testApp() (*Application, *bytes.Buffer, *bytes.Buffer) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	return &application{
-		stdin:  strings.NewReader(""),
-		stdout: stdout,
-		stderr: stderr,
-	}, stdout, stderr
+	return New(strings.NewReader(""), stdout, stderr), stdout, stderr
 }
 
 func TestInitStdout(t *testing.T) {
@@ -28,7 +24,7 @@ func TestInitStdout(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if stdout.String() != config.DefaultTemplate {
+	if stdout.String() != model.DefaultTemplate {
 		t.Fatal("--stdout does not match the embedded template")
 	}
 }
@@ -41,7 +37,11 @@ func TestInitWritesAndRefusesOverwrite(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if _, _, err := config.Load(path); err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := model.Parse(data); err != nil {
 		t.Fatalf("written config does not parse: %v", err)
 	}
 

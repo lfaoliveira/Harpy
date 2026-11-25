@@ -11,10 +11,12 @@ Status of the execution plan in [`PLAN.md`](../PLAN.md).
   `harpy version`, stable `--json` envelope (`schema: 1`).
 - Managers: winget, chocolatey, apt, pacman (`Installed`, `Download`,
   `Install`; download sentinel for winget/choco).
-- Sequential install engine with optional manager-level pre-download,
+- Sequential install use case with optional manager-level pre-download,
   continue-on-error, per-package logs and summary.
 - Elevation detection (root on Linux, token elevation on Windows) with a clear
   refusal before changing the system.
+- Layered architecture: pure `model` contracts, `domain` use cases, `manager`
+  adapters, host I/O in `platform`, and a thin `cli` presentation layer.
 - Linux Docker harness: Debian 12 + Arch, unit tests and a real `apply` smoke
   test.
 

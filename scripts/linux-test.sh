@@ -30,7 +30,7 @@ echo "== harpy Linux tests: manager=$manager os=$(uname -srm) =="
 go version
 
 echo "== gofmt =="
-unformatted="$(gofmt -l cmd internal)"
+unformatted="$(gofmt -l src)"
 if [[ -n "$unformatted" ]]; then
 	echo "unformatted files:" >&2
 	echo "$unformatted" >&2
@@ -44,7 +44,7 @@ echo "== go test =="
 go test ./...
 
 echo "== build =="
-go build -o /tmp/harpy ./src/cmd/harpy
+go build -o /tmp/harpy ./src
 
 echo "== managers =="
 /tmp/harpy managers

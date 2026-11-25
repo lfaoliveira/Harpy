@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
+
+	"github.com/lfaoliveira/harpy/src/internal/model"
+	"github.com/lfaoliveira/harpy/src/internal/platform"
 )
 
 // Pacman manages Arch Linux packages through pacman.
@@ -16,25 +18,25 @@ type Pacman struct {
 	sync string // pkg | full
 }
 
-func NewPacman(sync string) *Pacman {
+func NewPacman(sync string, runner platform.Runner) *Pacman {
 	if !strings.EqualFold(sync, "full") {
 		sync = "pkg"
 	}
-	return &Pacman{sync: sync}
+	return &Pacman{base: newBase(runner), sync: sync}
 }
 
-func (m *Pacman) Name() string         { return "pacman" }
-func (m *Pacman) OS() string           { return "linux" }
-func (m *Pacman) NeedsElevation() bool { return true }
-func (m *Pacman) Available() bool      { _, err := exec.LookPath("pacman"); return err == nil }
+func (m *Pacman) Name() model.ManagerName { return model.ManagerPacman }
+func (m *Pacman) OS() string              { return "linux" }
+func (m *Pacman) NeedsElevation() bool    { return true }
+func (m *Pacman) Available() bool         { return m.lookPath("pacman") }
 
-func (m *Pacman) Installed(ctx context.Context, ids []string) (map[string]bool, error) {
-	result := make(map[string]bool, len(ids))
-	if len(ids) == 0 {
+func (m *Pacman) Installed(ctx context.Context, packages []model.Package) (map[model.PackageID]bool, error) {
+	result := make(map[model.PackageID]bool, len(packages))
+	if len(packages) == 0 {
 		return result, nil
 	}
 
-	args := append([]string{"-Q"}, ids...)
+	args := append([]string{"-Q"}, packageIDs(packages)...)
 	stdout, _, err := m.output(ctx, "pacman", args...)
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -52,8 +54,8 @@ func (m *Pacman) Installed(ctx context.Context, ids []string) (map[string]bool, 
 			found[fields[0]] = true
 		}
 	}
-	for _, id := range ids {
-		result[id] = found[id]
+	for _, pkg := range packages {
+		result[pkg.ID] = found[pkg.ID.String()]
 	}
 	return result, nil
 }
@@ -63,8 +65,8 @@ func isMissingQueryError(err error) bool {
 	return ok && code == 1
 }
 
-func (m *Pacman) Download(ctx context.Context, ids []string, w io.Writer) error {
-	if len(ids) == 0 {
+func (m *Pacman) Download(ctx context.Context, packages []model.Package, w io.Writer) error {
+	if len(packages) == 0 {
 		return nil
 	}
 	if err := checkPacmanLock(); err != nil {
@@ -82,15 +84,15 @@ func (m *Pacman) Download(ctx context.Context, ids []string, w io.Writer) error 
 			return err
 		}
 	}
-	args := append([]string{"-Sw", "--noconfirm"}, ids...)
+	args := append([]string{"-Sw", "--noconfirm"}, packageIDs(packages)...)
 	return m.run(ctx, w, "pacman", args...)
 }
 
-func (m *Pacman) Install(ctx context.Context, id string, w io.Writer) error {
+func (m *Pacman) Install(ctx context.Context, pkg model.Package, w io.Writer) error {
 	if err := checkPacmanLock(); err != nil {
 		return err
 	}
-	return m.run(ctx, w, "pacman", "-S", "--noconfirm", id)
+	return m.run(ctx, w, "pacman", "-S", "--noconfirm", pkg.ID.String())
 }
 
 func checkPacmanLock() error {

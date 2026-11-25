@@ -1,6 +1,6 @@
 //go:build windows
 
-package manager
+package platform
 
 import (
 	"syscall"

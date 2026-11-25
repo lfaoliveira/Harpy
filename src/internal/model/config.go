@@ -1,21 +1,18 @@
-// Package config implements the harpy YAML configuration schema (version 1),
-// machine matching and profile resolution.
-package config
+// Package model owns Harpy's canonical data contracts: configuration,
+// package-manager names, package identity, plans and operation results. It
+// performs no filesystem or process I/O.
+package model
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
-
-// KnownManagers are the package managers supported by this build.
-var KnownManagers = []string{"winget", "chocolatey", "apt", "pacman"}
 
 // Config is the root of config.yaml.
 type Config struct {
@@ -26,9 +23,7 @@ type Config struct {
 	Machines []Machine          `yaml:"machines"`
 }
 
-// SearchConfig controls how package search ranks results. The search command
-// itself arrives in a later milestone; the fields are parsed now so the file
-// format is stable.
+// SearchConfig controls how package search ranks results.
 type SearchConfig struct {
 	Mode               string `yaml:"mode"` // fuzzy | literal
 	IncludeDescription bool   `yaml:"include_description"`
@@ -36,8 +31,8 @@ type SearchConfig struct {
 
 // DefaultsConfig holds installation defaults.
 type DefaultsConfig struct {
-	Managers        []string `yaml:"managers"`
-	ContinueOnError *bool    `yaml:"continue_on_error"`
+	Managers        []ManagerName `yaml:"managers"`
+	ContinueOnError *bool         `yaml:"continue_on_error"`
 }
 
 // Continue reports whether installation should keep going after a package
@@ -104,15 +99,15 @@ func (a App) firstID() string {
 
 // IDFor returns the package ID for a manager. An empty result means the app
 // did not declare an explicit ID for that manager.
-func (a App) IDFor(manager string) string {
-	switch NormalizeManagerName(manager) {
-	case "winget":
+func (a App) IDFor(manager ManagerName) string {
+	switch NormalizeManagerName(string(manager)) {
+	case ManagerWinget:
 		return a.Winget
-	case "chocolatey":
+	case ManagerChocolatey:
 		return a.Choco
-	case "apt":
+	case ManagerApt:
 		return a.Apt
-	case "pacman":
+	case ManagerPacman:
 		return a.Pacman
 	default:
 		return ""
@@ -153,35 +148,16 @@ type MachineMatch struct {
 	Hostname string `yaml:"hostname"` // glob, optional
 }
 
-// NormalizeManagerName maps aliases to canonical manager names. It returns ""
-// for unknown names.
-func NormalizeManagerName(name string) string {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "winget":
-		return "winget"
-	case "chocolatey", "choco":
-		return "chocolatey"
-	case "apt", "apt-get":
-		return "apt"
-	case "pacman":
-		return "pacman"
-	default:
-		return ""
-	}
+// Selection is the result of resolving a machine or explicit profiles.
+type Selection struct {
+	Machine  string
+	Profiles []string
+	Apps     []App
 }
 
-// Load reads and validates a config file. Warnings (unknown keys, unknown
+// Parse decodes and validates config bytes. Warnings (unknown keys, unknown
 // managers, newer config versions) are returned separately so the CLI can show
 // them without rejecting a forward-compatible file.
-func Load(filename string) (*Config, []string, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, nil, err
-	}
-	return Parse(data)
-}
-
-// Parse decodes and validates config bytes.
 func Parse(data []byte) (*Config, []string, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil, errors.New("config file is empty")
@@ -234,9 +210,9 @@ func (c *Config) validate() []string {
 		c.Search.Mode = "fuzzy"
 	}
 
-	seenManagers := map[string]bool{}
+	seenManagers := map[ManagerName]bool{}
 	for i, name := range c.Defaults.Managers {
-		canonical := NormalizeManagerName(name)
+		canonical := NormalizeManagerName(string(name))
 		if canonical == "" {
 			warnings = append(warnings, fmt.Sprintf("defaults.managers[%d]: unknown manager %q (ignored)", i, name))
 			continue
@@ -247,7 +223,7 @@ func (c *Config) validate() []string {
 		}
 		seenManagers[canonical] = true
 	}
-	c.Defaults.Managers = dedupeStrings(c.Defaults.Managers)
+	c.Defaults.Managers = dedupe(c.Defaults.Managers)
 
 	seenMachines := map[string]bool{}
 	for i := range c.Machines {
@@ -301,24 +277,18 @@ func (c *Config) validateErrors() error {
 	return nil
 }
 
-func dedupeStrings(in []string) []string {
-	seen := map[string]bool{}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if s == "" || seen[s] {
+func dedupe[T comparable](in []T) []T {
+	var zero T
+	seen := map[T]bool{}
+	out := make([]T, 0, len(in))
+	for _, value := range in {
+		if value == zero || seen[value] {
 			continue
 		}
-		seen[s] = true
-		out = append(out, s)
+		seen[value] = true
+		out = append(out, value)
 	}
 	return out
-}
-
-// Selection is the result of resolving a machine or explicit profiles.
-type Selection struct {
-	Machine  string
-	Profiles []string
-	Apps     []App
 }
 
 // Resolve selects apps for a machine. An explicit profile list bypasses
@@ -334,14 +304,14 @@ func (c *Config) Resolve(machineName string, profiles []string, hostOS, hostname
 	var selectedProfiles []string
 	var machineLabel string
 	if len(profiles) > 0 {
-		selectedProfiles = dedupeStrings(trimAll(profiles))
+		selectedProfiles = dedupe(trimAll(profiles))
 	} else {
 		machine, err := c.matchMachine(machineName, hostOS, hostname)
 		if err != nil {
 			return nil, err
 		}
 		machineLabel = machine.Name
-		selectedProfiles = dedupeStrings(machine.Profiles)
+		selectedProfiles = dedupe(machine.Profiles)
 	}
 	if len(selectedProfiles) == 0 {
 		return nil, errors.New("no profiles selected")

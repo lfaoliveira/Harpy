@@ -1,8 +1,10 @@
-package main
+// Package cli is Harpy's presentation layer: flag parsing, prompts, tables and
+// the versioned JSON envelope. It depends on domain use cases, never on
+// package-manager internals or raw filesystem calls.
+package cli
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,36 +12,55 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"text/tabwriter"
 
-	"github.com/lfaoliveira/harpy/src/internal/config"
-	"github.com/lfaoliveira/harpy/src/internal/engine"
-	"github.com/lfaoliveira/harpy/src/internal/paths"
+	"github.com/lfaoliveira/harpy/src/internal/domain"
+	"github.com/lfaoliveira/harpy/src/internal/manager"
+	"github.com/lfaoliveira/harpy/src/internal/model"
+	"github.com/lfaoliveira/harpy/src/internal/platform"
 )
-
-var version = "0.1.0-dev"
 
 const schemaVersion = 1
 
-type application struct {
-	stdin  io.Reader
-	stdout io.Writer
-	stderr io.Writer
+// Version is the build version, overridable with -ldflags.
+var Version = "0.1.0-dev"
+
+// Application holds the CLI's input/output streams and external adapters.
+type Application struct {
+	stdin   io.Reader
+	stdout  io.Writer
+	stderr  io.Writer
+	configs platform.ConfigStore
+	logs    domain.LogStore
+	// managers is injectable so command tests never need real package
+	// managers.
+	managers func(manager.Options) []domain.Manager
 }
 
-func main() {
-	app := &application{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
-	code, err := app.dispatch(os.Args[1:])
+// New builds the production application.
+func New(stdin io.Reader, stdout, stderr io.Writer) *Application {
+	return &Application{
+		stdin:    stdin,
+		stdout:   stdout,
+		stderr:   stderr,
+		configs:  platform.NewConfigStore(),
+		logs:     platform.NewLogStore(),
+		managers: manager.All,
+	}
+}
+
+// Run executes one CLI invocation and returns its process exit code.
+func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	code, err := New(stdin, stdout, stderr).dispatch(args)
 	if err != nil {
-		fmt.Fprintf(app.stderr, "harpy: %v\n", err)
+		fmt.Fprintf(stderr, "harpy: %v\n", err)
 		if code == 0 {
 			code = 1
 		}
 	}
-	os.Exit(code)
+	return code
 }
 
-func (a *application) dispatch(args []string) (int, error) {
+func (a *Application) dispatch(args []string) (int, error) {
 	if len(args) == 0 {
 		a.printHelp()
 		return 0, nil
@@ -66,7 +87,7 @@ func (a *application) dispatch(args []string) (int, error) {
 	}
 }
 
-func (a *application) printHelp() {
+func (a *Application) printHelp() {
 	fmt.Fprint(a.stdout, `harpy — universal package manager CLI
 
 Usage:
@@ -100,14 +121,14 @@ Docs:   docs/TESTING.md for the Docker test harness
 }
 
 func configPathForHelp() string {
-	p, err := paths.ConfigPath()
+	p, err := platform.ConfigPath()
 	if err != nil {
 		return "(unresolved)"
 	}
-	return p
+	return platform.ToSlash(p)
 }
 
-func (a *application) commandVersion(args []string) (int, error) {
+func (a *Application) commandVersion(args []string) (int, error) {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	fs.SetOutput(a.stderr)
 	jsonOut := fs.Bool("json", false, "emit JSON")
@@ -119,15 +140,15 @@ func (a *application) commandVersion(args []string) (int, error) {
 	}
 
 	data := map[string]any{
-		"version": version,
-		"os":      runtime.GOOS,
+		"version": Version,
+		"os":      platform.HostOS(),
 		"arch":    runtime.GOARCH,
 		"go":      runtime.Version(),
 	}
 	if *jsonOut {
 		return 0, a.writeJSON("version", data)
 	}
-	fmt.Fprintf(a.stdout, "harpy %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+	fmt.Fprintf(a.stdout, "harpy %s (%s/%s, %s)\n", Version, platform.HostOS(), runtime.GOARCH, runtime.Version())
 	return 0, nil
 }
 
@@ -143,47 +164,42 @@ func addConfigFlags(fs *flag.FlagSet, flags *configFlags) {
 	fs.StringVar(&flags.profiles, "profile", "", "comma-separated profiles (bypasses machine matching)")
 }
 
-func (a *application) loadConfig(flags configFlags) (*config.Config, string, error) {
+func (a *Application) loadConfig(flags configFlags) (*model.Config, string, error) {
 	path := flags.path
 	if path == "" {
 		var err error
-		path, err = paths.ConfigPath()
+		path, err = a.configs.Path()
 		if err != nil {
 			return nil, "", err
 		}
 	}
 
-	cfg, warnings, err := config.Load(path)
+	cfg, warnings, err := a.configs.Load(path)
 	for _, warning := range warnings {
 		fmt.Fprintf(a.stderr, "warning: %s\n", warning)
 	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, path, fmt.Errorf("config not found at %s; run \"harpy init\" or pass --config", path)
+			return nil, path, fmt.Errorf("config not found at %s; run \"harpy init\" or pass --config", platform.ToSlash(path))
 		}
-		return nil, path, fmt.Errorf("load config %s: %w", path, err)
+		return nil, path, fmt.Errorf("load config %s: %w", platform.ToSlash(path), err)
 	}
 	return cfg, path, nil
 }
 
-func (a *application) writeJSON(command string, data any) error {
-	envelope := struct {
-		Schema  int    `json:"schema"`
-		Command string `json:"command"`
-		Version string `json:"version"`
-		Data    any    `json:"data"`
-	}{
-		Schema:  schemaVersion,
-		Command: command,
-		Version: version,
-		Data:    data,
-	}
-	encoder := json.NewEncoder(a.stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(envelope)
+func (a *Application) service(cfg *model.Config, pacmanSync string, verbose bool, progress io.Writer) *domain.Service {
+	return domain.New(cfg, domain.Options{
+		HostOS:   platform.HostOS(),
+		Hostname: platform.Hostname(),
+		Managers: a.managers(manager.Options{PacmanSync: pacmanSync}),
+		Elevated: platform.IsElevated(),
+		Verbose:  verbose,
+		Progress: progress,
+		Logs:     a.logs,
+	})
 }
 
-func (a *application) confirm(prompt string) (bool, error) {
+func (a *Application) confirm(prompt string) (bool, error) {
 	file, ok := a.stdin.(*os.File)
 	if !ok {
 		return false, errors.New("confirmation requires a terminal; re-run with --yes")
@@ -206,11 +222,17 @@ func (a *application) confirm(prompt string) (bool, error) {
 	}
 }
 
-func profileList(raw string) []string {
+func splitProfiles(raw string) []string {
 	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	return []string{raw}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func flagWasSet(fs *flag.FlagSet, name string) bool {
@@ -221,63 +243,4 @@ func flagWasSet(fs *flag.FlagSet, name string) bool {
 		}
 	})
 	return found
-}
-
-func printPlan(w io.Writer, plan *engine.Plan) {
-	header := "harpy plan — " + runtime.GOOS
-	if plan.Machine != "" {
-		header += " · machine: " + plan.Machine
-	}
-	fmt.Fprintln(w, header)
-	if len(plan.Profiles) > 0 {
-		fmt.Fprintf(w, "profiles: %s\n", strings.Join(plan.Profiles, ", "))
-	}
-	fmt.Fprintln(w)
-
-	if len(plan.Items) == 0 {
-		fmt.Fprintln(w, "No apps selected.")
-		return
-	}
-
-	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "STATUS\tMANAGER\tID\tAPP\tDETAIL")
-	for _, item := range plan.Items {
-		managerName := item.Manager
-		if managerName == "" {
-			managerName = "-"
-		}
-		id := item.ID
-		if id == "" {
-			id = "-"
-		}
-		detail := item.Note
-		if item.Error != "" {
-			detail = item.Error
-		}
-		if detail == "" {
-			detail = "-"
-		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", item.Status, managerName, id, item.App, detail)
-	}
-	tw.Flush()
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, summaryLine(plan.Summary))
-}
-
-func summaryLine(s engine.Summary) string {
-	parts := []string{
-		fmt.Sprintf("%d total", s.Total),
-		fmt.Sprintf("%d to install", s.ToInstall),
-		fmt.Sprintf("%d installed", s.Installed),
-	}
-	if s.Blocked > 0 {
-		parts = append(parts, fmt.Sprintf("%d blocked", s.Blocked))
-	}
-	if s.Failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
-	}
-	if s.Skipped > 0 {
-		parts = append(parts, fmt.Sprintf("%d skipped", s.Skipped))
-	}
-	return "Summary: " + strings.Join(parts, " · ")
 }

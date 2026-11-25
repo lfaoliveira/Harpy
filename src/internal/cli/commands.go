@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"context"
@@ -7,18 +7,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"runtime"
 	"strings"
-	"text/tabwriter"
 
-	"github.com/lfaoliveira/harpy/src/internal/config"
-	"github.com/lfaoliveira/harpy/src/internal/engine"
+	"github.com/lfaoliveira/harpy/src/internal/domain"
 	"github.com/lfaoliveira/harpy/src/internal/manager"
-	"github.com/lfaoliveira/harpy/src/internal/paths"
+	"github.com/lfaoliveira/harpy/src/internal/model"
+	"github.com/lfaoliveira/harpy/src/internal/platform"
 )
 
-func (a *application) commandInit(args []string) (int, error) {
+func (a *Application) commandInit(args []string) (int, error) {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(a.stderr)
 	var path string
@@ -40,44 +37,33 @@ func (a *application) commandInit(args []string) (int, error) {
 		if jsonOut {
 			return 2, errors.New("--stdout and --json cannot be combined")
 		}
-		fmt.Fprint(a.stdout, config.DefaultTemplate)
+		fmt.Fprint(a.stdout, model.DefaultTemplate)
 		return 0, nil
 	}
 
 	if path == "" {
 		var err error
-		path, err = paths.ConfigPath()
+		path, err = a.configs.Path()
 		if err != nil {
 			return 1, err
 		}
 	}
-	if _, err := os.Stat(path); err == nil && !force {
-		return 1, fmt.Errorf("config already exists at %s (use --force to overwrite)", path)
+	if exists, _ := a.configs.Exists(path); exists && !force {
+		return 1, fmt.Errorf("config already exists at %s (use --force to overwrite)", platform.ToSlash(path))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return 1, fmt.Errorf("create config directory: %w", err)
-	}
-	if err := os.WriteFile(path, []byte(config.DefaultTemplate), 0o644); err != nil {
-		return 1, fmt.Errorf("write config: %w", err)
+	if err := a.configs.Write(path, []byte(model.DefaultTemplate)); err != nil {
+		return 1, err
 	}
 
 	if jsonOut {
-		return 0, a.writeJSON("init", map[string]any{"path": path})
+		return 0, a.writeJSON("init", map[string]any{"path": platform.ToSlash(path)})
 	}
-	fmt.Fprintf(a.stdout, "wrote %s\n\nNext steps:\n  harpy plan\n  harpy apply --yes\n", path)
+	fmt.Fprintf(a.stdout, "wrote %s\n\nNext steps:\n  harpy plan\n  harpy apply --yes\n", platform.ToSlash(path))
 	return 0, nil
 }
 
-type managerInfo struct {
-	Name              string `json:"name"`
-	OS                string `json:"os"`
-	Host              bool   `json:"host"`
-	Available         bool   `json:"available"`
-	ElevationRequired bool   `json:"elevation_required"`
-}
-
-func (a *application) commandManagers(args []string) (int, error) {
+func (a *Application) commandManagers(args []string) (int, error) {
 	fs := flag.NewFlagSet("managers", flag.ContinueOnError)
 	fs.SetOutput(a.stderr)
 	var all, jsonOut bool
@@ -93,56 +79,21 @@ func (a *application) commandManagers(args []string) (int, error) {
 		return 2, fmt.Errorf("managers takes no positional arguments (got %v)", fs.Args())
 	}
 
-	var infos []managerInfo
-	for _, m := range manager.All(manager.Options{}) {
-		host := m.OS() == runtime.GOOS
-		if !all && !host {
-			continue
-		}
-		infos = append(infos, managerInfo{
-			Name:              m.Name(),
-			OS:                m.OS(),
-			Host:              host,
-			Available:         m.Available(),
-			ElevationRequired: m.NeedsElevation(),
-		})
-	}
-
-	elevated := manager.IsElevated()
+	elevated := platform.IsElevated()
+	infos := domain.ManagerInfos(a.managers(manager.Options{}), platform.HostOS(), elevated, all)
 	if jsonOut {
 		return 0, a.writeJSON("managers", map[string]any{
-			"os":       runtime.GOOS,
+			"os":       platform.HostOS(),
 			"elevated": elevated,
 			"managers": infos,
 		})
 	}
 
-	tw := tabwriter.NewWriter(a.stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tOS\tHOST\tAVAILABLE\tELEVATION")
-	for _, info := range infos {
-		host := "no"
-		if info.Host {
-			host = "yes"
-		}
-		available := "no"
-		if info.Available {
-			available = "yes"
-		}
-		elevation := "not required"
-		if info.ElevationRequired {
-			elevation = "required"
-			if info.Host && elevated {
-				elevation = "required (active)"
-			}
-		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", info.Name, info.OS, host, available, elevation)
-	}
-	tw.Flush()
-	fmt.Fprintf(a.stdout, "\nhost: %s · elevated: %t\n", runtime.GOOS, elevated)
+	printManagers(a.stdout, infos, elevated)
 	return 0, nil
 }
 
-func (a *application) commandPlan(args []string) (int, error) {
+func (a *Application) commandPlan(args []string) (int, error) {
 	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
 	fs.SetOutput(a.stderr)
 	var flags configFlags
@@ -163,28 +114,24 @@ func (a *application) commandPlan(args []string) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	hostname, _ := os.Hostname()
-	eng := engine.New(cfg, engine.Options{
-		HostOS:   runtime.GOOS,
-		Hostname: hostname,
-	})
-	selection, err := eng.Resolve(flags.machine, profileList(flags.profiles))
+	svc := a.service(cfg, "", false, nil)
+	selection, err := svc.Resolve(flags.machine, splitProfiles(flags.profiles))
 	if err != nil {
 		return 1, err
 	}
-	plan, err := eng.Plan(context.Background(), selection)
+	plan, err := svc.Plan(context.Background(), selection)
 	if err != nil {
 		return 1, err
 	}
 
 	if jsonOut {
-		return 0, a.writeJSON("plan", plan)
+		return 0, a.writeJSON("plan", planPayload(plan))
 	}
 	printPlan(a.stdout, plan)
 	return 0, nil
 }
 
-func (a *application) commandApply(args []string) (int, error) {
+func (a *Application) commandApply(args []string) (int, error) {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	fs.SetOutput(a.stderr)
 	var flags configFlags
@@ -221,23 +168,16 @@ func (a *application) commandApply(args []string) (int, error) {
 	if !flagWasSet(fs, "continue-on-error") {
 		continueOnError = cfg.Defaults.Continue()
 	}
-	hostname, _ := os.Hostname()
 	progress := a.stdout
 	if jsonOut {
 		progress = a.stderr
 	}
-	eng := engine.New(cfg, engine.Options{
-		HostOS:     runtime.GOOS,
-		Hostname:   hostname,
-		PacmanSync: pacmanSync,
-		Verbose:    verbose,
-		Progress:   progress,
-	})
-	selection, err := eng.Resolve(flags.machine, profileList(flags.profiles))
+	svc := a.service(cfg, pacmanSync, verbose, progress)
+	selection, err := svc.Resolve(flags.machine, splitProfiles(flags.profiles))
 	if err != nil {
 		return 1, err
 	}
-	plan, err := eng.Plan(ctx, selection)
+	plan, err := svc.Plan(ctx, selection)
 	if err != nil {
 		return 1, err
 	}
@@ -248,7 +188,7 @@ func (a *application) commandApply(args []string) (int, error) {
 
 	if plan.Summary.ToInstall == 0 {
 		if jsonOut {
-			if err := a.writeJSON("apply", plan); err != nil {
+			if err := a.writeJSON("apply", planPayload(plan)); err != nil {
 				return 1, err
 			}
 		} else if plan.Summary.Blocked > 0 || plan.Summary.Failed > 0 {
@@ -262,8 +202,8 @@ func (a *application) commandApply(args []string) (int, error) {
 		return 0, nil
 	}
 
-	if name, ok := elevationRequired(plan); ok {
-		if runtime.GOOS == "windows" {
+	if name, ok := svc.ElevationRequired(plan); ok {
+		if platform.HostOS() == "windows" {
 			return 1, fmt.Errorf("%s requires administrator privileges; re-run from an elevated terminal: %s", name, strings.Join(os.Args, " "))
 		}
 		return 1, fmt.Errorf("%s requires root privileges; re-run: sudo %s", name, strings.Join(os.Args, " "))
@@ -281,7 +221,7 @@ func (a *application) commandApply(args []string) (int, error) {
 		}
 	}
 
-	if err := eng.Apply(ctx, plan, engine.ApplyOptions{
+	if err := svc.Apply(ctx, plan, domain.ApplyOptions{
 		Download:        download,
 		ContinueOnError: continueOnError,
 	}); err != nil {
@@ -289,14 +229,14 @@ func (a *application) commandApply(args []string) (int, error) {
 	}
 
 	if jsonOut {
-		if err := a.writeJSON("apply", plan); err != nil {
+		if err := a.writeJSON("apply", planPayload(plan)); err != nil {
 			return 1, err
 		}
 	} else {
 		fmt.Fprintln(a.stdout)
 		fmt.Fprintln(a.stdout, summaryLine(plan.Summary))
 		if plan.LogDir != "" {
-			fmt.Fprintf(a.stdout, "logs: %s\n", plan.LogDir)
+			fmt.Fprintf(a.stdout, "logs: %s\n", platform.ToSlash(plan.LogDir))
 		}
 	}
 
@@ -304,20 +244,4 @@ func (a *application) commandApply(args []string) (int, error) {
 		return 1, nil
 	}
 	return 0, nil
-}
-
-func elevationRequired(plan *engine.Plan) (string, bool) {
-	if manager.IsElevated() {
-		return "", false
-	}
-	for _, item := range plan.Items {
-		if item.Status != engine.StatusToInstall {
-			continue
-		}
-		mgr, ok := manager.ByName(item.Manager, manager.Options{})
-		if ok && mgr.NeedsElevation() {
-			return mgr.Name(), true
-		}
-	}
-	return "", false
 }
