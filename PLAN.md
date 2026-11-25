@@ -46,31 +46,33 @@ Toolchain: Go 1.23+ (já coberto por `go = "latest"` no `mise.toml`). Todas as d
 ## 2. Arquitetura
 
 ```
-src/cmd/harpy/main.go        # flags, dispatch CLI, check de privilégio
+src/main.go                    # composition root (thin: delegates to internal/cli)
 src/internal/
-  config/      # schema YAML v1, match de máquina, resolução de perfis
-  manager/     # Manager + Searcher por PM
-    winget.go  choco.go  apt.go  pacman.go
-  index/       # SQLite: schema, upsert, query, TTL, refresh
-  search/      # merge, filtros, fuzzy/literal, paginação
-  engine/      # plan -> download -> install sequencial -> resumo
-  ui/          # bubbletea: lista, busca, logs, confirmação
-  logx/        # log por pacote
-docs/TODO.md   # futuro (configs de dev, sync)
-config.example.yaml
+  cli/         # flags, dispatch, prompts, tables, stable JSON envelope
+  domain/      # resolve -> plan -> download -> install use cases
+  model/       # config schema, canonical package/plan contracts, manager names
+  manager/     # winget/choco/apt/pacman adapters
+  platform/    # host paths, config/log files, privilege checks, process runner
+  logx/        # per-package log naming and creation
 ```
+
+Camadas: **model** é dado puro (sem I/O); **domain** são os casos de uso e
+regras; **manager** são adapters que traduzem saída bruta dos PMs para
+`model.Package`; **platform** é a camada de I/O do host; **cli** é a
+apresentação. O `domain` depende de interfaces (`domain.Manager`,
+`domain.LogStore`), nunca de `manager` ou `platform`.
 
 Contrato central (mantém os 4 PMs e a busca uniformes):
 
 ```go
 type Manager interface {
-    Name() string
+    Name() model.ManagerName
     OS() string                                      // "windows" | "linux"
     Available() bool                                 // binário no PATH
     NeedsElevation() bool
-    Installed(ctx context.Context, ids []string) (map[string]bool, error)
-    Download(ctx context.Context, ids []string, w io.Writer) error  // ErrSemDownload
-    Install(ctx context.Context, id string, w io.Writer) error
+    Installed(ctx context.Context, packages []model.Package) (map[model.PackageID]bool, error)
+    Download(ctx context.Context, packages []model.Package, w io.Writer) error  // model.ErrNoDownload
+    Install(ctx context.Context, pkg model.Package, w io.Writer) error
 }
 
 type Searcher interface {
@@ -83,7 +85,11 @@ type Searcher interface {
 }
 ```
 
-O core roda **headless** (`harpy plan`, `harpy apply --yes`, `harpy search --json`); a TUI é cliente da mesma engine. Instalação é **100% sequencial** (um `exec.Command` por vez). Sem DLL de instalador no processo — o problema de thread-safety nativa não existe por construção.
+Todo processo externo passa por `platform.Runner` (captura e streaming),
+centralizando exit codes e stderr. Caminhos físicos continuam nativos do host;
+caminhos lógicos/serializados são normalizados para `/` na borda da CLI.
+
+O core roda **headless** (`harpy plan`, `harpy apply --yes`, `harpy search --json`); a TUI é cliente dos mesmos casos de uso em `internal/domain`. Instalação é **100% sequencial** (um `exec.Command` por vez). Sem DLL de instalador no processo — o problema de thread-safety nativa não existe por construção.
 
 A única concorrência do projeto é I/O de UI: busca assíncrona via `tea.Cmd` (goroutine + canal) para não travar a TUI. Não é thread nativa, não toca instalador.
 
@@ -391,7 +397,7 @@ Hooks que custam 0,5 dia agora e evitam reescrita: `version: 1`, tolerância a c
 | Marco     | Entrega                                                                                                                                     | Dias      |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | **M0**    | Skeleton, module `harpy`, config YAML + match de máquina, `harpy init`                                                                      | 3–4       |
-| **M1**    | Detecção (4 PMs), adapter winget, engine sequencial, `plan`/`apply` CLI                                                                     | 9–12      |
+| **M1**    | Detecção (4 PMs), adapter winget, instalação sequencial, `plan`/`apply` CLI                                                                 | 9–12      |
 | **M2**    | SQLite (schema, TTL, refresh, export/import, WSL/Docker), search core (fuzzy/literal, filtros, paginação 25/200), adapters choco/apt/pacman | 17–24     |
 | **M3**    | TUI completa (lista, busca paginada, filtros, log ao vivo, detalhes, add-to-config)                                                         | 10–14     |
 | **M4**    | Elevação, logs por pacote, resumo, `--json`, goreleaser (2 OS, binário estático)                                                            | 6–8       |
