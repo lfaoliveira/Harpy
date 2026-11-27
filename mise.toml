@@ -1,5 +1,5 @@
 [tools]
-go = "1.23"
+go = "1.26"
 golangcli-lint = "latest"
 
 [tasks.help]
@@ -31,7 +31,12 @@ run = [
 #=======FORMAT AND LINT=======#
 [tasks.tidy]
 description = "Tidy modules, apply Go fixes, and format source files"
-run = ["go mod tidy -v", "go fix ./...", "go fmt ./..."]
+run = [
+    "go mod tidy -v",
+    "go fix ./...",
+    "go fmt ./...",
+    "go run golang.org/x/tools/cmd/goimports@latest -w .",
+]
 
 [tasks.lint]
 description = "Run golangci-lint"
