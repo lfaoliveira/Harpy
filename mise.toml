@@ -1,23 +1,24 @@
 [tools]
 go = "1.23"
+golangcli-lint = "latest"
 
-
-[task.help]
+[tasks.help]
 description = "List available mise tasks"
 run = "mise tasks ls"
 
-[task.confirm]
+#=======AUDIT AND UTILS=======#
+[tasks.confirm]
 description = "Confirm a potentially destructive operation"
 confirm = "Are you sure?"
 shell = "bash -c"
 run = "true"
 
-[task.no-dirty]
+[tasks.no-dirty]
 description = "Fail if the Git working tree has changes"
 shell = "bash -c"
 run = 'test -z "$(git status --porcelain)"'
 
-[task.audit]
+[tasks.audit]
 description = "Run Go quality and vulnerability checks"
 depends = ["tidy", "lint", "test", "test-race", "vet", "vuln"]
 shell = "bash -c"
@@ -27,65 +28,42 @@ run = [
     "go run honnef.co/go/tools/cmd/staticcheck@latest -checks=all,-ST1000,-U1000 ./...",
 ]
 
-[task.tidy]
+#=======FORMAT AND LINT=======#
+[tasks.tidy]
 description = "Tidy modules, apply Go fixes, and format source files"
 run = ["go mod tidy -v", "go fix ./...", "go fmt ./..."]
 
-[task.lint]
+[tasks.lint]
 description = "Run golangci-lint"
 run = ["golangci-lint run"]
 
-[task.test]
+#=======TESTING=======#
+[tasks.test]
 description = "Run all tests with the race detector"
 run = "go test -race -buildvcs ./..."
 
-[task."test:cover"]
+[tasks."test:cover"]
 description = "Run tests with coverage and open the coverage report"
 run = [
     "go test -race -buildvcs -coverprofile=coverage.out ./...",
     "go tool cover -html=coverage.out",
 ]
 
-[task.vet]
-description = "Run go vet"
-run = "go vet ./..."
-
-[task.test-race]
+[tasks.test-race]
 description = "Run all tests with the race detector"
 run = "go test -race ./..."
 
-[task.vuln]
+#=======SECURITY=======#
+[tasks.vet]
+description = "Run go vet"
+run = "go vet ./..."
+
+[tasks.vuln]
 description = "Check dependencies for known vulnerabilities"
 run = "go run golang.org/x/vuln/cmd/govulncheck@latest ./..."
 
-
 #=======PROD=======#
-[task.build]
-description = "Build the Go application"
-shell = "bash -c"
-run = [
-    "mkdir -p tmp/bin",
-    "go build -o=tmp/bin/{{vars.binary_name}} {{vars.main_package_path}}",
-]
-run_windows = [
-    "mkdir -p tmp/bin",
-    "go build -o=tmp/bin/{{vars.binary_name}}.exe {{vars.main_package_path}}",
-]
-
-[task.run]
-description = "Build and run the application"
-depends = ["build"]
-shell = "bash -c"
-run = "./tmp/bin/{{vars.binary_name}}"
-run_windows = "./tmp/bin/{{vars.binary_name}}.exe"
-
-[task."run-live"]
-description = "Run the application with live reload"
-shell = "bash -c"
-run = 'go run github.com/cosmtrek/air@v1.43.0 --build.cmd "mise run build" --build.bin "tmp/bin/{{vars.binary_name}}" --build.delay "100" --build.exclude_dir "" --build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" --misc.clean_on_exit "true"'
-run_windows = 'go run github.com/cosmtrek/air@v1.43.0 --build.cmd "mise run build" --build.bin "tmp/bin/{{vars.binary_name}}.exe" --build.delay "100" --build.exclude_dir "" --build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" --misc.clean_on_exit "true"'
-
-[task.push]
+[tasks.push]
 description = "Audit the project and push changes"
 depends = ["audit", "no-dirty"]
 confirm = "Are you sure?"
