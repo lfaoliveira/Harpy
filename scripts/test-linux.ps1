@@ -1,6 +1,6 @@
 param(
     [ValidateSet("debian", "arch", "both")]
-    [string]$Distro = "debian",
+    [string]$Distro = "both",
     [switch]$NoBuild,
     [switch]$SkipInstall
 )

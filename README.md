@@ -21,7 +21,7 @@ bind profiles to machines, and let Harpy install the missing packages.
 
 ## Install
 
-Build from source (Go 1.23+):
+Build from source (Go 1.26+):
 
 ```bash
 git clone https://github.com/lfaoliveira/harpy.git
@@ -36,19 +36,19 @@ mise install
 go build -o harpy ./src
 ```
 
-Put the resulting `harpy` binary on your `PATH`.
+Put the resulting `harpy` binary on your `PATH`. Future integration into mise planned.
 
 ## Architecture
 
 Harpy is split into layers so that OS details never leak into business rules:
 
-| Layer | Package | Responsibility |
-| --- | --- | --- |
-| Model | `src/internal/model` | Canonical config, package, plan and manager-name contracts. Pure data and normalization; no I/O. |
-| Domain | `src/internal/domain` | `resolve → plan → download → install` use cases behind small ports. |
-| Adapters | `src/internal/manager` | winget/chocolatey/apt/pacman adapters; raw output is parsed into model contracts. |
-| Platform | `src/internal/platform` | Host paths, config/log files, privilege checks and the single `Runner` used for all process I/O. |
-| Presentation | `src/internal/cli` | Flags, prompts, tables and the versioned JSON envelope. |
+| Layer        | Package                 | Responsibility                                                                                   |
+| ------------ | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Model        | `src/internal/model`    | Canonical config, package, plan and manager-name contracts. Pure data and normalization; no I/O. |
+| Domain       | `src/internal/domain`   | `resolve → plan → download → install` use cases behind small ports.                              |
+| Adapters     | `src/internal/manager`  | winget/chocolatey/apt/pacman adapters; raw output is parsed into model contracts.                |
+| Platform     | `src/internal/platform` | Host paths, config/log files, privilege checks and the single `Runner` used for all process I/O. |
+| Presentation | `src/internal/cli`      | Flags, prompts, tables and the versioned JSON envelope.                                          |
 
 `src/main.go` is a thin composition root. Physical paths stay host-native
 (Windows paths remain valid on Windows); only logical/serialized paths are
@@ -197,4 +197,3 @@ details, the manual Docker commands and troubleshooting.
 - **M4:** Windows auto-elevation, goreleaser, release hardening
 
 Full execution plan: [`PLAN.md`](PLAN.md).
-
