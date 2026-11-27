@@ -15,7 +15,7 @@ import (
 func testApp() (*Application, *bytes.Buffer, *bytes.Buffer) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	return New(strings.NewReader(""), stdout, stderr), stdout, stderr
+	return NewApp(strings.NewReader(""), stdout, stderr), stdout, stderr
 }
 
 func TestInitStdout(t *testing.T) {

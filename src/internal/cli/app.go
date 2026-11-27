@@ -36,8 +36,8 @@ type Application struct {
 	managers func(manager.Options) []domain.Manager
 }
 
-// New builds the production application.
-func New(stdin io.Reader, stdout, stderr io.Writer) *Application {
+// NewApp builds the production application.
+func NewApp(stdin io.Reader, stdout, stderr io.Writer) *Application {
 	return &Application{
 		stdin:    stdin,
 		stdout:   stdout,
@@ -50,7 +50,7 @@ func New(stdin io.Reader, stdout, stderr io.Writer) *Application {
 
 // Run executes one CLI invocation and returns its process exit code.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	code, err := New(stdin, stdout, stderr).dispatch(args)
+	code, err := NewApp(stdin, stdout, stderr).dispatch(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "harpy: %v\n", err)
 		if code == 0 {
@@ -80,7 +80,7 @@ func (a *Application) dispatch(args []string) (int, error) {
 		return a.commandPlan(rest)
 	case "apply":
 		return a.commandApply(rest)
-	case "managers", "manager":
+	case "managers":
 		return a.commandManagers(rest)
 	default:
 		return 1, fmt.Errorf("unknown command %q (run \"harpy help\")", command)
@@ -123,7 +123,7 @@ Docs:   docs/TESTING.md for the Docker test harness
 func configPathForHelp() string {
 	p, err := platform.ConfigPath()
 	if err != nil {
-		return "(unresolved)"
+		return "Not Found"
 	}
 	return platform.ToSlash(p)
 }
